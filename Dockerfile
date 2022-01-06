@@ -37,7 +37,7 @@ RUN chmod 0755 /lambda-php-runtime/bootstrap
 # Install Guzzle, prepare vendor files
 RUN mkdir /lambda-php-vendor && \
     cd /lambda-php-vendor && \
-    /opt/php-7-bin/bin/php /opt/php-7-bin/bin/composer require guzzlehttp/guzzle
+    /opt/php-7-bin/bin/php /opt/php-7-bin/bin/composer require guzzlehttp/guzzle aws/aws-sdk-php
 
 
 ###### Create runtime image ######
