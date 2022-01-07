@@ -3,14 +3,36 @@
 declare(strict_types=1);
 
 require_once('Assert.php');
+require_once('MimeTypeUtil.php');
 require_once('PathInfoUtil.php');
 
 use Aws\MediaConvert\MediaConvertClient;
 
-/**
- * @var string EXPECTED_EVENT_VERSION
- */
 const EXPECTED_EVENT_VERSION = '2.2';
+
+const CONVERSION_TARGET_MIME_TYPES = [
+    'video/mp4',
+    'video/3gpp',
+    'video/3gpp2',
+    'video/mpeg',
+    'video/quicktime',
+    'video/ogg',
+    'video/vnd.mpegurl',
+    'video/vnd.rn-realvideo',
+    'video/vnd.vivo',
+    'video/webm',
+    'video/x-bamba',
+    'video/x-mng',
+    'video/x-ms-asf',
+    'video/x-ms-wm',
+    'video/x-ms-wmv',
+    'video/x-ms-wmx',
+    'video/x-msvideo',
+    'video/x-qmsys',
+    'video/x-sgi-movie',
+    'video/x-tango',
+    'video/x-vif'
+];
 
 /**
  * @param array $event
@@ -18,7 +40,7 @@ const EXPECTED_EVENT_VERSION = '2.2';
  */
 function index(array $event): void
 {
-    Assert::isNotNull($event, '$event cannot be null.');
+    Assert::notNull($event, '$event cannot be null.');
 
     /** @var array $records */
     $records = $event['Records'];
@@ -48,25 +70,25 @@ function index(array $event): void
         /** @var string $objectKey */
         $objectKey = $record['s3']['object']['key'];
 
-        makeVideoConvertRequest($mediaConvertClient, $bucketName, $objectKey);
+        // 変換対象のファイル形式である場合にMediaConvertへのリクエストを作成する
+        if (in_array(
+                MimeTypeUtil::convertExtensionToMimeType(PathInfoUtil::extensionOf($objectKey)),
+                CONVERSION_TARGET_MIME_TYPES,
+                true)) {
+            makeVideoConvertRequest($mediaConvertClient, $bucketName, $objectKey);
+        }
     }
 }
 
 function buildMediaConvertClient(): MediaConvertClient
 {
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_REGION'], 'Environment variable MEDIA_CONVERT_EXECUTION_REGION must be provided.');
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_ENDPOINT'], 'Environment variable MEDIA_CONVERT_EXECUTMEDIA_CONVERT_ENDPOINTION_REGION must be provided.');
-    Assert::isNotEmpty($_ENV['AWS_ACCESS_KEY_ID'], 'Environment variable AWS_ACCESS_KEY_ID must be provided.');
-    Assert::isNotEmpty($_ENV['AWS_SECRET_ACCESS_KEY'], 'Environment variable AWS_SECRET_ACCESS_KEY must be provided.');
+    Assert::notEmpty($_ENV['MEDIA_CONVERT_EXECUTION_REGION'], 'Environment variable MEDIA_CONVERT_EXECUTION_REGION must be provided.');
+    Assert::notEmpty($_ENV['MEDIA_CONVERT_ENDPOINT'], 'Environment variable MEDIA_CONVERT_EXECUTMEDIA_CONVERT_ENDPOINTION_REGION must be provided.');
 
     return new MediaConvertClient([
         'version' => '2017-08-29',
         'region' => $_ENV['MEDIA_CONVERT_EXECUTION_REGION'],
-        'endpoint' => $_ENV['MEDIA_CONVERT_ENDPOINT'],
-        'credentials' => [
-            'key'    => $_ENV['AWS_ACCESS_KEY_ID'],
-            'secret' => $_ENV['AWS_SECRET_ACCESS_KEY'],
-        ]
+        'endpoint' => $_ENV['MEDIA_CONVERT_ENDPOINT']
     ]);
 }
 
@@ -80,10 +102,9 @@ function buildMediaConvertClient(): MediaConvertClient
  */
 function makeVideoConvertRequest(MediaConvertClient $client, string $inputBucketName, string $inputObjectKey): void
 {
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'], 'Environment variable MEDIA_CONVERT_EXECUTION_ROLE_ARN must be provided.');
-    Assert::isNotEmpty($_ENV['INPUT_S3_BUCKET_NAME'], 'Environment variable INPUT_S3_BUCKET_NAME must be provided.');
-    Assert::isNotEmpty($_ENV['OUTPUT_S3_BUCKET_NAME'], 'Environment variable OUTPUT_S3_BUCKET_NAME must be provided.');
-    Assert::isTrue($inputBucketName === $_ENV['INPUT_S3_BUCKET_NAME'], '$inputBucketName and MEDIA_CONVERT_EXECUTION_REGION must be the same.');
+    Assert::notEmpty($_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'], 'Environment variable MEDIA_CONVERT_EXECUTION_ROLE_ARN must be provided.');
+    Assert::notEmpty($_ENV['OUTPUT_S3_BUCKET_NAME'], 'Environment variable OUTPUT_S3_BUCKET_NAME must be provided.');
+    Assert::isTrue($inputBucketName !== $_ENV['OUTPUT_S3_BUCKET_NAME'], '$inputBucketName and OUTPUT_S3_BUCKET_NAME must be different.');
 
     /** @var string $outputObjectKey */
     $outputObjectKey = PathInfoUtil::filenameOf($inputObjectKey);
