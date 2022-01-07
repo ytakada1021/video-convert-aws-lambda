@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once('Assert.php');
+require_once('PathInfoUtil.php');
 
 use Aws\MediaConvert\MediaConvertClient;
-use Aws\Exception\AwsException;
 
 /**
  * @var string EXPECTED_EVENT_VERSION
@@ -13,14 +13,12 @@ use Aws\Exception\AwsException;
 const EXPECTED_EVENT_VERSION = '2.2';
 
 /**
- * AWS SDK MediaConvert: https://docs.aws.amazon.com/aws-sdk-php/v3/api/api-mediaconvert-2017-08-29.html#createjob
- *
  * @param array $event
  * @return void
  */
 function index(array $event): void
 {
-    Assert::isNotNull($event);
+    Assert::isNotNull($event, '$event cannot be null.');
 
     /** @var array $records */
     $records = $event['Records'];
@@ -56,9 +54,10 @@ function index(array $event): void
 
 function buildMediaConvertClient(): MediaConvertClient
 {
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_REGION']);
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_PROFILE']);
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_ENDPOINT']);
+    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_REGION'], 'Environment variable MEDIA_CONVERT_EXECUTION_REGION must be provided.');
+    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_ENDPOINT'], 'Environment variable MEDIA_CONVERT_EXECUTMEDIA_CONVERT_ENDPOINTION_REGION must be provided.');
+    Assert::isNotEmpty($_ENV['AWS_ACCESS_KEY_ID'], 'Environment variable AWS_ACCESS_KEY_ID must be provided.');
+    Assert::isNotEmpty($_ENV['AWS_SECRET_ACCESS_KEY'], 'Environment variable AWS_SECRET_ACCESS_KEY must be provided.');
 
     return new MediaConvertClient([
         'version' => '2017-08-29',
@@ -71,55 +70,90 @@ function buildMediaConvertClient(): MediaConvertClient
     ]);
 }
 
+/**
+ * MediaConvertパラメータ参照先: https://docs.aws.amazon.com/aws-sdk-php/v3/api/api-mediaconvert-2017-08-29.html#createjob
+ *
+ * @param MediaConvertClient $client
+ * @param string $inputBucketName
+ * @param string $inputObjectKey
+ * @return void
+ */
 function makeVideoConvertRequest(MediaConvertClient $client, string $inputBucketName, string $inputObjectKey): void
 {
-    Assert::isNotEmpty($_ENV['INPUT_S3_BUCKET_NAME']);
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN']);
-    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_JOB_TEMPLATE_NAME']);
-    Assert::isNotEmpty($_ENV['OUTPUT_S3_BUCKET_NAME']);
-    Assert::isTrue($inputBucketName === $_ENV['INPUT_S3_BUCKET_NAME']);
+    Assert::isNotEmpty($_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'], 'Environment variable MEDIA_CONVERT_EXECUTION_ROLE_ARN must be provided.');
+    Assert::isNotEmpty($_ENV['INPUT_S3_BUCKET_NAME'], 'Environment variable INPUT_S3_BUCKET_NAME must be provided.');
+    Assert::isNotEmpty($_ENV['OUTPUT_S3_BUCKET_NAME'], 'Environment variable OUTPUT_S3_BUCKET_NAME must be provided.');
+    Assert::isTrue($inputBucketName === $_ENV['INPUT_S3_BUCKET_NAME'], '$inputBucketName and MEDIA_CONVERT_EXECUTION_REGION must be the same.');
 
-    try {
-        $client->createJob([
-            'Role' => $_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'],
-            'Settings' => prepareMediaConvertSetting($inputBucketName, $inputObjectKey, $_ENV['OUTPUT_S3_BUCKET_NAME']),
-            'JobTemplate' => $_ENV['MEDIA_CONVERT_JOB_TEMPLATE_NAME']
-        ]);
-    } catch (AwsException $e) {
-        echo $e->getMessage();
-        echo '\n';
-    }
-}
-
-function prepareMediaConvertSetting(string $inputBucketName, string $inputObjectKey, string $outputBucketname): array
-{
     /** @var string $outputObjectKey */
-    $outputObjectKey = $inputObjectKey;
+    $outputObjectKey = PathInfoUtil::filenameOf($inputObjectKey);
 
-    return [
-        'Inputs' => [
-            [
-                'FileInput' => sprintf('s3://%s/%s', $inputBucketName, $inputObjectKey)
-            ]
-        ],
-        'OutputGroups' => [
-            [
-                'Name' => 'Apple HLS',
-                'OutputGroupSettings' => [
-                    'Type' => 'HLS_GROUP_SETTINGS',
-                    'HlsGroupSettings' => [
-                        'Destination' => sprintf('s3://%s/%s', $outputBucketname, $outputObjectKey),
-                    ],
-                ],
-                'Outputs' => [
-                    [
-                        'VideoDescription' => [
-                            'Width' => 640,
-                            'Height' => 360,
-                        ],
-                    ],
-                ],
+    $client->createJob([
+        'Role' => $_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'],
+        'Settings' => [
+            'TimecodeConfig' => [
+                'Source' => 'ZEROBASED'
             ],
+            'OutputGroups' => [
+                [
+                    'Name' => 'Apple HLS',
+                    'Outputs' => [
+                        [
+                            'ContainerSettings' => [
+                                'Container' => 'M3U8',
+                                'M3u8Settings' => []
+                            ],
+                            'VideoDescription' => [
+                                'CodecSettings' => [
+                                    'Codec' => 'H_264',
+                                    'H264Settings' => [
+                                        'MaxBitrate' => 2000000,
+                                        'RateControlMode' => 'QVBR',
+                                        'SceneChangeDetect' => 'TRANSITION_DETECTION'
+                                    ]
+                                ]
+                            ],
+                            'AudioDescriptions' => [
+                                [
+                                    'AudioSourceName' => 'Audio Selector 1',
+                                    'CodecSettings' => [
+                                        'Codec' => 'AAC',
+                                        'AacSettings' => [
+                                            'Bitrate' => 96000,
+                                            'CodingMode' => 'CODING_MODE_2_0',
+                                            'SampleRate' => 48000
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            'OutputSettings' => [
+                                'HlsSettings' => []
+                            ],
+                            'NameModifier' => '_0'
+                        ]
+                    ],
+                    'OutputGroupSettings' => [
+                        'Type' => 'HLS_GROUP_SETTINGS',
+                        'HlsGroupSettings' => [
+                            'SegmentLength' => 10,
+                            'Destination' => sprintf('s3://%s/%s', $_ENV['OUTPUT_S3_BUCKET_NAME'], $outputObjectKey),
+                            'MinSegmentLength' => 0
+                        ]
+                    ]
+                ]
+            ],
+            'Inputs' => [
+                [
+                    'AudioSelectors' => [
+                        'Audio Selector 1' => [
+                            'DefaultSelection' => 'DEFAULT'
+                        ]
+                    ],
+                    'VideoSelector' => [],
+                    'TimecodeSource' => 'ZEROBASED',
+                    'FileInput' => sprintf('s3://%s/%s', $inputBucketName, $inputObjectKey),
+                ]
+            ]
         ]
-    ];
+    ]);
 }
