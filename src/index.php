@@ -8,7 +8,9 @@ require_once('PathInfoUtil.php');
 
 use Aws\MediaConvert\MediaConvertClient;
 
-const EXPECTED_EVENT_VERSION = '2.2';
+const EXPECTED_EVENT_VERSIONS = [
+    '2.1'
+];
 
 const CONVERSION_TARGET_MIME_TYPES = [
     'video/mp4',
@@ -34,6 +36,14 @@ const CONVERSION_TARGET_MIME_TYPES = [
     'video/x-vif'
 ];
 
+const LISTENING_EVENT_TYPES = [
+    'ObjectCreated:*',
+    'ObjectCreated:Put',
+    'ObjectCreated:Post',
+    'ObjectCreated:Copy',
+    'ObjectCreated:CompleteMultipartUpload'
+];
+
 /**
  * @param array $event
  * @return void
@@ -49,7 +59,7 @@ function index(array $event): void
     $mediaConvertClient = buildMediaConvertClient();
 
     foreach ($records as $record) {
-        if ($record['eventName'] !== 's3:ObjectCreated:*') {
+        if (! in_array($record['eventName'], LISTENING_EVENT_TYPES)) {
             continue;
         }
 
@@ -57,11 +67,11 @@ function index(array $event): void
         // イベントバージョン参考: https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/notification-content-structure.html
         /** @var string $eventVersion */
         $eventVersion = $record['eventVersion'];
-        if ($eventVersion !== EXPECTED_EVENT_VERSION) {
+        if (! in_array($eventVersion, EXPECTED_EVENT_VERSIONS)) {
             printf(<<< 'EOT'
-            想定S3イベントバージョン（=%1$s）以外のバージョンのイベントを処理しようとしています（バージョン%2$s）.
-            バージョン%2$sへの対応を検討ください.
-            EOT, EXPECTED_EVENT_VERSION, $eventVersion);
+            想定S3イベントバージョン以外のバージョンのイベントを処理しようとしています（バージョン%s）.
+            バージョン%sへの対応を検討ください.
+            EOT, $eventVersion);
         }
 
         /** @var string $bucketName */
@@ -76,6 +86,8 @@ function index(array $event): void
                 CONVERSION_TARGET_MIME_TYPES,
                 true)) {
             makeVideoConvertRequest($mediaConvertClient, $bucketName, $objectKey);
+
+            printf('s3://%s/%s の変換を正常にリクエストしました.\n', $bucketName, $objectKey);
         }
     }
 }
@@ -107,7 +119,7 @@ function makeVideoConvertRequest(MediaConvertClient $client, string $inputBucket
     Assert::isTrue($inputBucketName !== $_ENV['OUTPUT_S3_BUCKET_NAME'], '$inputBucketName and OUTPUT_S3_BUCKET_NAME must be different.');
 
     /** @var string $outputObjectKey */
-    $outputObjectKey = PathInfoUtil::filenameOf($inputObjectKey);
+    $outputObjectKey = PathInfoUtil::pathWithoutExtensionOf($inputObjectKey);
 
     $client->createJob([
         'Role' => $_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'],
