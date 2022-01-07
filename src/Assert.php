@@ -2,20 +2,26 @@
 
 declare(strict_types=1);
 
-class Assert {
-    public static function isNotNull($mixed): void
+class Assert
+{
+    public static function isNotNull($mixed, string $message): void
     {
-        assert(!is_null($mixed));
+        if (is_null($mixed)) {
+            throw new InvalidArgumentException($message);
+        }
     }
 
-    public static function isNotEmpty(?string $str): void
+    public static function isNotEmpty(string $str, string $message): void
     {
-        assert(!is_null($str));
-        assert($str !== '');
+        if ($str === '') {
+            throw new InvalidArgumentException($message);
+        }
     }
 
-    public static function isTrue(bool $boolean): void
+    public static function isTrue(bool $boolean, string $message): void
     {
-        assert($boolean);
+        if (! $boolean) {
+            throw new InvalidArgumentException($message);
+        }
     }
 }
