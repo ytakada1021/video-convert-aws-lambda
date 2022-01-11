@@ -169,7 +169,7 @@ class MimeTypeUtil
         $lowerCaseExtension = strtolower($extension);
 
         if (! array_key_exists($lowerCaseExtension, self::EXTENSION_MIME_TYPE_CORRESPONDENCES)) {
-            throw new InvalidArgumentException('Cannot get mime type from $extension.');
+            throw new InvalidArgumentException("Cannot get mime type from provided extension: $extension.");
         }
 
         return self::EXTENSION_MIME_TYPE_CORRESPONDENCES[$lowerCaseExtension];
@@ -181,7 +181,7 @@ class MimeTypeUtil
         $mimeType = mime_content_type($basename);
 
         if (!$mimeType) {
-            throw new InvalidArgumentException('Mime type cannot be detected from $basename.');
+            throw new InvalidArgumentException("Mime type cannot be detected from provided basename: $basename.");
         }
 
         return $mimeType;
