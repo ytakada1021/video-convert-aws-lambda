@@ -62,12 +62,11 @@ function index(array $event): void
                 true)) {
             makeVideoConvertRequest($mediaConvertClient, $bucketName, $objectKey);
 
-            printf('s3://%s/%s の変換を正常にリクエストしました.\n', $bucketName, $objectKey);
             print(<<< EOT
-            Video format conversion was Successfully requested.
+            Successfully requested video format conversion.
             Source:
-                Bucket Name: $bucketName,
-                Object Key: $objectKey
+                Bucket Name: $bucketName
+                Object Key: $objectKey\n
             EOT);
         }
     }
