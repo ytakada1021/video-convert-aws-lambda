@@ -8,10 +8,6 @@ require_once('PathInfoUtil.php');
 
 use Aws\MediaConvert\MediaConvertClient;
 
-const EXPECTED_EVENT_VERSIONS = [
-    '2.1'
-];
-
 const CONVERSION_TARGET_MIME_TYPES = [
     'video/mp4',
     'video/3gpp',
@@ -36,14 +32,6 @@ const CONVERSION_TARGET_MIME_TYPES = [
     'video/x-vif'
 ];
 
-const LISTENING_EVENT_TYPES = [
-    'ObjectCreated:*',
-    'ObjectCreated:Put',
-    'ObjectCreated:Post',
-    'ObjectCreated:Copy',
-    'ObjectCreated:CompleteMultipartUpload'
-];
-
 /**
  * @param array $event
  * @return void
@@ -59,26 +47,13 @@ function index(array $event): void
     $mediaConvertClient = buildMediaConvertClient();
 
     foreach ($records as $record) {
-        if (! in_array($record['eventName'], LISTENING_EVENT_TYPES)) {
-            continue;
-        }
-
-        // イベントバージョンを検証し、想定されていないバージョンの場合はログに警告メッセージを出力する
-        // イベントバージョン参考: https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/notification-content-structure.html
-        /** @var string $eventVersion */
-        $eventVersion = $record['eventVersion'];
-        if (! in_array($eventVersion, EXPECTED_EVENT_VERSIONS)) {
-            printf(<<< 'EOT'
-            想定S3イベントバージョン以外のバージョンのイベントを処理しようとしています（バージョン%s）.
-            バージョン%sへの対応を検討ください.
-            EOT, $eventVersion);
-        }
+        $message = json_decode($record['Sns']['Message'], true);
 
         /** @var string $bucketName */
-        $bucketName = $record['s3']['bucket']['name'];
+        $bucketName = $message['Records'][0]['s3']['bucket']['name'];
 
         /** @var string $objectKey */
-        $objectKey = $record['s3']['object']['key'];
+        $objectKey = $message['Records'][0]['s3']['object']['key'];
 
         // 変換対象のファイル形式である場合にMediaConvertへのリクエストを作成する
         if (in_array(
@@ -88,6 +63,12 @@ function index(array $event): void
             makeVideoConvertRequest($mediaConvertClient, $bucketName, $objectKey);
 
             printf('s3://%s/%s の変換を正常にリクエストしました.\n', $bucketName, $objectKey);
+            print(<<< EOT
+            Video format conversion was Successfully requested.
+            Source:
+                Bucket Name: $bucketName,
+                Object Key: $objectKey
+            EOT);
         }
     }
 }
