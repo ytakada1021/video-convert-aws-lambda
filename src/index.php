@@ -38,8 +38,6 @@ const CONVERSION_TARGET_MIME_TYPES = [
  */
 function index(array $event): void
 {
-    Assert::notNull($event, '$event cannot be null.');
-
     /** @var array $records */
     $records = $event['Records'];
 
@@ -99,7 +97,7 @@ function makeVideoConvertRequest(MediaConvertClient $client, string $inputBucket
     Assert::isTrue($inputBucketName !== $_ENV['OUTPUT_S3_BUCKET_NAME'], '$inputBucketName and OUTPUT_S3_BUCKET_NAME must be different.');
 
     /** @var string $outputObjectKey */
-    $outputObjectKey = PathInfoUtil::pathWithoutExtensionOf($inputObjectKey);
+    $outputObjectKey = PathInfoUtil::filenameOf($inputObjectKey);
 
     $client->createJob([
         'Role' => $_ENV['MEDIA_CONVERT_EXECUTION_ROLE_ARN'],
@@ -162,7 +160,9 @@ function makeVideoConvertRequest(MediaConvertClient $client, string $inputBucket
                             'DefaultSelection' => 'DEFAULT'
                         ]
                     ],
-                    'VideoSelector' => [],
+                    'VideoSelector' => [
+                        'Rotate' => 'AUTO'
+                    ],
                     'TimecodeSource' => 'ZEROBASED',
                     'FileInput' => sprintf('s3://%s/%s', $inputBucketName, $inputObjectKey),
                 ]
