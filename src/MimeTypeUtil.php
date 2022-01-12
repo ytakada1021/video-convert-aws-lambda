@@ -2,7 +2,7 @@
 
 class MimeTypeUtil
 {
-    const EXTENSION_MIME_TYPE_CORRESPONDENCES = [
+    const EXTENSION_MIME_TYPE_MAPPINGS = [
         'ai'      => 'application/postscript',
         'aif'     => 'audio/x-aiff',
         'aifc'    => 'audio/x-aiff',
@@ -74,6 +74,7 @@ class MimeTypeUtil
         'movie'   => 'video/x-sgi-movie',
         'mp2'     => 'audio/mpeg',
         'mp3'     => 'audio/mpeg',
+        'mp4'     => 'video/mp4',
         'mpe'     => 'video/mpeg',
         'mpeg'    => 'video/mpeg',
         'mpg'     => 'video/mpeg',
@@ -168,11 +169,11 @@ class MimeTypeUtil
         /** @var string $lowerCaseExtension */
         $lowerCaseExtension = strtolower($extension);
 
-        if (! array_key_exists($lowerCaseExtension, self::EXTENSION_MIME_TYPE_CORRESPONDENCES)) {
+        if (! array_key_exists($lowerCaseExtension, self::EXTENSION_MIME_TYPE_MAPPINGS)) {
             throw new InvalidArgumentException("Cannot get mime type from provided extension: $extension.");
         }
 
-        return self::EXTENSION_MIME_TYPE_CORRESPONDENCES[$lowerCaseExtension];
+        return self::EXTENSION_MIME_TYPE_MAPPINGS[$lowerCaseExtension];
     }
 
     public static function mimeTypeOf(string $basename): string
